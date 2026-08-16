@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDEs and Editors
+.idea/
+.run/
+.vscode/
+
+# Environments and Package Managers
+.env
+.venv
+venv/
+.pixi/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Unit test / coverage reports
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local / temp
+*.log
+*.tmp
+dftb_in.hsd
+dftb_pin.hsd
+detailed.out
+band.out
+charges.bin
+md.out

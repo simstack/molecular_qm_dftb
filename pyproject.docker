@@ -1,0 +1,51 @@
+# Container-only install manifest (dual-use capability package).
+# Host: no pyproject.toml — flat tree under simstack-model for create_*_table.
+# Image: Dockerfile copies this to pyproject.toml, then `uv pip install .`
+# (hatch force-include + deps from git via [tool.uv.sources]).
+[project]
+name = "molecular_qm_dftb"
+version = "0.1.0"
+description = "DFTB+ capabilities for molecular quantum mechanics within the Simstack framework"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+  { name = "Wolfgang Wenzel", email = "wolfgang.wenzel@kit.edu" }
+]
+dependencies = [
+    "molecular_qm_models",
+    "simstack",
+    "numpy",
+]
+
+[project.entry-points."simstack.modules"]
+molecular_qm_dftb = "molecular_qm_dftb"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+# Flat checkout root → nested import package in the wheel.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+
+[tool.hatch.build.targets.wheel.force-include]
+"__init__.py" = "molecular_qm_dftb/__init__.py"
+"nodes" = "molecular_qm_dftb/nodes"
+"models" = "molecular_qm_dftb/models"
+"lib" = "molecular_qm_dftb/lib"
+"testing" = "molecular_qm_dftb/testing"
+"tests" = "molecular_qm_dftb/tests"
+
+[tool.uv.sources]
+molecular_qm_models = { git = "https://github.com/simstack/molecular_qm_models.git" }
+simstack = { git = "https://github.com/simstack/simstack.git", rev = "fix-git-pull" }
+
+[tool.uv]
+override-dependencies = [
+    "molecular_qm_models @ git+https://github.com/simstack/molecular_qm_models.git",
+    "simstack @ git+https://github.com/simstack/simstack.git@fix-git-pull",
+]
