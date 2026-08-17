@@ -1,10 +1,9 @@
 from enum import Enum
 from typing import List, Optional
 
-from odmantic import Field, Model, Reference
+from odmantic import Field, Model
 from pydantic import model_validator
 
-from molecular_qm_models.molecule import Molecule
 from simstack.models import simstack_model
 from simstack.models.files import FileStack
 from simstack.util.cleaned_json_schema import cleaned_json_schema
@@ -33,7 +32,6 @@ class DftbInput(Model):
     """Input for the DFTB+ Python API calculator."""
 
     field_name: str = "DftbInput"
-    molecule: Molecule = Reference()
     charge: int = Field(0, json_schema_extra={"description": "Net charge"})
     multiplicity: int = Field(1, json_schema_extra={"description": "Spin multiplicity"})
 
@@ -150,15 +148,8 @@ class DftbInput(Model):
                     raise ValueError(f"{name} must be a length-3 vector for periodic jobs")
         if self.use_hsd_file and self.hsd_file is None:
             raise ValueError("hsd_file is required when use_hsd_file is True")
-        if self.use_external_potential:
-            if not self.external_potential:
-                raise ValueError("external_potential is required when the toggle is on")
-            natom = len(self.molecule.atoms) if self.molecule and self.molecule.atoms else None
-            if natom is not None and len(self.external_potential) != natom:
-                raise ValueError("external_potential length must match the number of atoms")
-            if self.external_potential_gradient is not None and natom is not None:
-                if len(self.external_potential_gradient) != natom * 3:
-                    raise ValueError("external_potential_gradient must have length 3 * natom")
+        if self.use_external_potential and not self.external_potential:
+            raise ValueError("external_potential is required when the toggle is on")
         if self.optimization:
             self.compute_gradients = True
         return self

@@ -22,7 +22,7 @@ def _unique_elements(molecule: Molecule) -> list[str]:
 def geometry_block(molecule: Molecule, periodic: bool, lattice=None) -> str:
     """Dummy GenFormat geometry. Atom count / species must match ``set_geometry``."""
     if not molecule.atoms:
-        raise ValueError("DftbInput.molecule has no atoms")
+        raise ValueError("molecule has no atoms")
     elements = _unique_elements(molecule)
     index_of = {el: i + 1 for i, el in enumerate(elements)}
     kind = "S" if periodic else "C"
@@ -151,9 +151,8 @@ def analysis_block(compute_gradients: bool, compute_cm5: bool) -> str:
     return "\n".join(lines) + "\n"
 
 
-def build_hsd(opts) -> str:
-    """Return a complete ``dftb_in.hsd`` string for ``DftbInput``."""
-    molecule = opts.molecule
+def build_hsd(opts, molecule: Molecule) -> str:
+    """Return a complete ``dftb_in.hsd`` string for ``DftbInput`` and ``Molecule``."""
     lattice = None
     if opts.use_periodic:
         lattice = [opts.lattice_a, opts.lattice_b, opts.lattice_c]

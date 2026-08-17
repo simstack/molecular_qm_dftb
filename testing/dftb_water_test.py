@@ -21,14 +21,14 @@ def make_water() -> Molecule:
 
 async def main():
     await context.initialize()
+    water = make_water()
     opts = DftbInput(
-        molecule=make_water(),
         xtb_method=XtbMethod.GFN2,
         compute_gradients=True,
         compute_charges=True,
     )
     parameters = Parameters(resource="local", in_docker=True, force_rerun=True)
-    result = await dftb_calculator(opts, parameters=parameters)
+    result = await dftb_calculator(water, opts, parameters=parameters)
     print(result)
 
 

@@ -17,8 +17,8 @@ def make_water() -> Molecule:
 
 
 def test_xtb_hsd_contains_gfn2_and_water_geometry():
-    opts = DftbInput(molecule=make_water(), hamiltonian=DftbHamiltonian.XTB, xtb_method=XtbMethod.GFN2)
-    hsd = build_hsd(opts)
+    opts = DftbInput(hamiltonian=DftbHamiltonian.XTB, xtb_method=XtbMethod.GFN2)
+    hsd = build_hsd(opts, make_water())
     assert "Hamiltonian = xTB" in hsd
     assert 'Method = "GFN2-xTB"' in hsd
     assert "3 C" in hsd
@@ -29,14 +29,13 @@ def test_xtb_hsd_contains_gfn2_and_water_geometry():
 
 def test_dftb3_hsd_has_3ob_hubbard_and_skf_prefix():
     opts = DftbInput(
-        molecule=make_water(),
         hamiltonian=DftbHamiltonian.DFTB,
         skf_set=SkfSet.THREE_OB,
         third_order=True,
         compute_gradients=False,
         compute_cm5=True,
     )
-    hsd = build_hsd(opts)
+    hsd = build_hsd(opts, make_water())
     assert "Hamiltonian = DFTB" in hsd
     assert "ThirdOrderFull = Yes" in hsd
     assert "H = -0.1857" in hsd
@@ -50,14 +49,13 @@ def test_dftb3_hsd_has_3ob_hubbard_and_skf_prefix():
 
 def test_periodic_xtb_writes_lattice_and_kpoints():
     opts = DftbInput(
-        molecule=make_water(),
         use_periodic=True,
         lattice_a=[10.0, 0.0, 0.0],
         lattice_b=[0.0, 10.0, 0.0],
         lattice_c=[0.0, 0.0, 10.0],
         kpoint_mesh=2,
     )
-    hsd = build_hsd(opts)
+    hsd = build_hsd(opts, make_water())
     assert "3 S" in hsd
     assert "10.0000000000" in hsd
     assert "kPointsAndWeights = SuperCellFolding" in hsd

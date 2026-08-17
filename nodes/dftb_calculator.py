@@ -14,6 +14,7 @@ from molecular_qm_dftb.lib.dftb_runner import (
 )
 from molecular_qm_dftb.lib.hsd import build_hsd
 from molecular_qm_dftb.models.dftb_input import DftbInput
+from molecular_qm_models.molecule import Molecule
 from molecular_qm_models.qm_result import QMResult
 from simstack.core.node import node
 from simstack.core.simstack_result import SimstackResult
@@ -56,7 +57,7 @@ def _gradient_table(molecule, gradients):
     return table
 
 
-def _write_hsd(opts: DftbInput, node_runner) -> Path:
+def _write_hsd(opts: DftbInput, molecule: Molecule, node_runner) -> Path:
     hsd_path = Path("dftb_in.hsd")
     if opts.use_hsd_file and opts.hsd_file is not None:
         downloaded = Path(opts.hsd_file.get(local_dir=Path(".")))
@@ -66,7 +67,7 @@ def _write_hsd(opts: DftbInput, node_runner) -> Path:
             copyfile(downloaded, hsd_path)
         node_runner.info(f"Using provided HSD input {opts.hsd_file.name}")
     else:
-        hsd_path.write_text(build_hsd(opts), encoding="utf-8")
+        hsd_path.write_text(build_hsd(opts, molecule), encoding="utf-8")
         node_runner.info("Generated dftb_in.hsd from DftbInput")
     node_runner.info_files.append(
         FileStack.from_local_file(hsd_path, in_memory=True, is_hashable=True, secure_source=True)
@@ -98,12 +99,13 @@ def _steepest_descent(session, coords, latvecs, max_steps, force_tol, node_runne
 
 
 @node
-async def dftb_calculator(opts: DftbInput, **kwargs) -> SimstackResult:
+async def dftb_calculator(molecule: Molecule, opts: DftbInput, **kwargs) -> SimstackResult:
     """
     DFTB+ node using the dftbplus-python ctypes API.
 
     Parameters:
-        opts (DftbInput): Geometry, Hamiltonian (xTB or DFTB), and API options.
+        molecule (Molecule): Geometry to evaluate.
+        opts (DftbInput): Hamiltonian (xTB or DFTB) and API options.
 
     SimstackResult:
         qm_result (QMResult): Energy, dipole, charges on atoms, final structure.
@@ -117,15 +119,22 @@ async def dftb_calculator(opts: DftbInput, **kwargs) -> SimstackResult:
     logfile = Path("dftbplus.log")
     session = None
     try:
-        _write_hsd(opts, node_runner)
+        if opts.use_external_potential:
+            natom = len(molecule.atoms)
+            if opts.external_potential is None or len(opts.external_potential) != natom:
+                return node_runner.fail("external_potential length must match the number of atoms")
+            if opts.external_potential_gradient is not None and len(opts.external_potential_gradient) != natom * 3:
+                return node_runner.fail("external_potential_gradient must have length 3 * natom")
+
+        _write_hsd(opts, molecule, node_runner)
         session = DftbPlusSession(hsdpath="dftb_in.hsd", logfile=str(logfile))
         n_atoms = session.get_nr_atoms()
-        if n_atoms != len(opts.molecule.atoms):
+        if n_atoms != len(molecule.atoms):
             return node_runner.fail(
-                f"API atom count {n_atoms} does not match molecule ({len(opts.molecule.atoms)})"
+                f"API atom count {n_atoms} does not match molecule ({len(molecule.atoms)})"
             )
 
-        coords = molecule_coords_bohr(opts.molecule)
+        coords = molecule_coords_bohr(molecule)
         latvecs = None
         if opts.use_periodic:
             latvecs = lattice_bohr(opts.lattice_a, opts.lattice_b, opts.lattice_c)
@@ -159,7 +168,7 @@ async def dftb_calculator(opts: DftbInput, **kwargs) -> SimstackResult:
             except Exception as exc:
                 node_runner.warning(f"get_cm5_charges failed: {exc}")
 
-        final_structure = molecule_from_coords(opts.molecule, coords)
+        final_structure = molecule_from_coords(molecule, coords)
         if charges is not None:
             for atom, charge in zip(final_structure.atoms, charges):
                 atom.properties["mulliken_charge"] = float(charge)
