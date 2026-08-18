@@ -1,5 +1,7 @@
-# Build from the simstack-model repository root:
-#   docker build -t molecular-qm-dftb:latest -f molecular_qm_dftb/Dockerfile .
+# Build from this capability repository:
+#   docker build -t molecular-qm-dftb:latest .
+# From simstack-model:
+#   docker build -t molecular-qm-dftb:latest -f molecular_qm_dftb/Dockerfile molecular_qm_dftb
 #
 # Dual-use: capability tree is not installable on host (no pyproject.toml).
 # In the image, pyproject.docker is renamed and the package is pip-installed;
@@ -58,7 +60,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/conda
 ENV PATH="/opt/conda/bin:/root/.local/bin:$PATH"
 
 # Capability package only — deps install from git via pyproject.docker.
-COPY molecular_qm_dftb /build/molecular_qm_dftb
+COPY . /build/molecular_qm_dftb
 WORKDIR /build/molecular_qm_dftb
 RUN cp pyproject.docker pyproject.toml \
  && uv pip install --system . "setuptools>=80.9.0" \
