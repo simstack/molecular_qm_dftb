@@ -64,6 +64,9 @@ COPY . /build/molecular_qm_dftb
 WORKDIR /build/molecular_qm_dftb
 RUN cp pyproject.docker pyproject.toml \
  && uv pip install --system . "setuptools>=80.9.0" \
+ && python -c "from molecular_qm_dftb.models.dftb_input import DftbInput; \
+o=DftbInput(optimization=True); \
+assert o.optimization is True and o.compute_gradients is True" \
  && python -c "import dftbplus, simstack, molecular_qm_models, molecular_qm_dftb; \
 from dftbplus import DftbPlus; \
 print('dftbplus', dftbplus.__file__); \

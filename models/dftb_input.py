@@ -134,6 +134,8 @@ class DftbInput(Model):
         if not data.get("use_external_potential"):
             data["external_potential"] = None
             data["external_potential_gradient"] = None
+        if data.get("optimization"):
+            data["compute_gradients"] = True
         return data
 
     @model_validator(mode="after")
@@ -150,8 +152,6 @@ class DftbInput(Model):
             raise ValueError("hsd_file is required when use_hsd_file is True")
         if self.use_external_potential and not self.external_potential:
             raise ValueError("external_potential is required when the toggle is on")
-        if self.optimization:
-            self.compute_gradients = True
         return self
 
     @classmethod

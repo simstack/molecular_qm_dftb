@@ -47,6 +47,14 @@ def test_dftb3_hsd_has_3ob_hubbard_and_skf_prefix():
     assert "PrintForces" not in hsd
 
 
+def test_optimization_true_does_not_recurse_and_enables_gradients():
+    opts = DftbInput(optimization=True, charge=-1, multiplicity=1)
+    assert opts.optimization is True
+    assert opts.compute_gradients is True
+    assert opts.charge == -1
+    assert opts.multiplicity == 1
+
+
 def test_periodic_xtb_writes_lattice_and_kpoints():
     opts = DftbInput(
         use_periodic=True,
