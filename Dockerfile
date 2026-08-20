@@ -1,7 +1,8 @@
 # Build from this capability repository:
-#   docker build -t molecular-qm-dftb:latest .
+#   docker build --build-arg UV_GIT_SHAS=$(python resolve_uv_git_shas.py pyproject.docker) -t molecular-qm-dftb:latest .
 # From simstack-model:
-#   docker build -t molecular-qm-dftb:latest -f molecular_qm_dftb/Dockerfile molecular_qm_dftb
+#   docker build --build-arg UV_GIT_SHAS=$(python scripts/resolve_uv_git_shas.py molecular_qm_dftb/pyproject.docker) -t molecular-qm-dftb:latest -f molecular_qm_dftb/Dockerfile molecular_qm_dftb
+# Do not pass SIMSTACK_SHA: the Dockerfile cache key is UV_GIT_SHAS.
 #
 # Dual-use: capability tree is not installable on host (no pyproject.toml).
 # In the image, pyproject.docker is renamed and the package is pip-installed;
@@ -62,7 +63,12 @@ ENV PATH="/opt/conda/bin:/root/.local/bin:$PATH"
 # Capability package only — deps install from git via pyproject.docker.
 COPY . /build/molecular_qm_dftb
 WORKDIR /build/molecular_qm_dftb
-RUN cp pyproject.docker pyproject.toml \
+# uv pip install . uses pyproject.docker. UV_GIT_SHAS is only a cache key:
+# resolved commits of those git sources, so this layer rebuilds when a pinned
+# branch (e.g. fix-git-pull) moves.
+ARG UV_GIT_SHAS=unknown
+RUN echo "uv git sources ${UV_GIT_SHAS}" \
+ && cp pyproject.docker pyproject.toml \
  && uv pip install --system . "setuptools>=80.9.0" \
  && python -c "from molecular_qm_dftb.models.dftb_input import DftbInput; \
 o=DftbInput(optimization=True); \
