@@ -71,3 +71,10 @@ def test_periodic_xtb_writes_lattice_and_kpoints():
     assert "10.0000000000" in hsd
     assert "kPointsAndWeights = SuperCellFolding" in hsd
     assert "2 0 0" in hsd
+
+
+def test_dftb_schema_keeps_optimization_step_fields_in_properties():
+    schema = DftbInput.json_schema()
+    assert "max_optimization_steps" in schema["properties"]
+    assert "force_tolerance" in schema["properties"]
+    assert "optimization" not in schema.get("dependencies", {})
