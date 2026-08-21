@@ -9,8 +9,9 @@ and the node drives the ctypes Python API (`dftbplus.DftbPlus`).
 - `dftb_calculator` — `Molecule` + `DftbInput`; write `dftb_in.hsd`, then call
   `set_geometry`, `get_energy`, `get_gradients`, `get_gross_charges`,
   optional `get_cm5_charges` / `set_external_potential`. Default Hamiltonian
-  is GFN2-xTB via tblite (no Slater-Koster files required). DFTB/3ob and
-  DFTB/mio are available when SKF files are on `DFTBPLUS_PARAM_DIR`.
+  is DFTB with the 3ob-3-1 Slater-Koster set (SKF files on
+  `DFTBPLUS_PARAM_DIR`). xTB via tblite (GFN1/GFN2/IPEA1) is available as an
+  alternative.
 - `dftb_list_calculator` — `MoleculeList` + `DftbInput`; runs `dftb_calculator`
   on every molecule in parallel and returns a `DataSet` with one section
   named `results`.

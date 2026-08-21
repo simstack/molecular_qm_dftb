@@ -49,6 +49,8 @@ def test_dftb3_hsd_has_3ob_hubbard_and_skf_prefix():
 
 def test_optimization_true_does_not_recurse_and_enables_gradients():
     opts = DftbInput(optimization=True, charge=-1, multiplicity=1)
+    assert opts.hamiltonian == DftbHamiltonian.DFTB
+    assert opts.skf_set == SkfSet.THREE_OB
     assert opts.optimization is True
     assert opts.compute_gradients is True
     assert opts.charge == -1
@@ -57,6 +59,7 @@ def test_optimization_true_does_not_recurse_and_enables_gradients():
 
 def test_periodic_xtb_writes_lattice_and_kpoints():
     opts = DftbInput(
+        hamiltonian=DftbHamiltonian.XTB,
         use_periodic=True,
         lattice_a=[10.0, 0.0, 0.0],
         lattice_b=[0.0, 10.0, 0.0],

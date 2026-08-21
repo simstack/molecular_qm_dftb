@@ -11,8 +11,8 @@ from simstack.util.generate_ui_schema import generate_ui_schema
 
 
 class DftbHamiltonian(str, Enum):
-    XTB = "xTB"
     DFTB = "DFTB"
+    XTB = "xTB"
 
 
 class XtbMethod(str, Enum):
@@ -36,8 +36,8 @@ class DftbInput(Model):
     multiplicity: int = Field(1, json_schema_extra={"description": "Spin multiplicity"})
 
     hamiltonian: DftbHamiltonian = Field(
-        DftbHamiltonian.XTB,
-        json_schema_extra={"description": "xTB (tblite) or DFTB with Slater-Koster files"},
+        DftbHamiltonian.DFTB,
+        json_schema_extra={"description": "DFTB with Slater-Koster files, or xTB (tblite)"},
     )
     xtb_method: XtbMethod = Field(
         XtbMethod.GFN2, json_schema_extra={"description": "tblite xTB parametrization"}
@@ -181,17 +181,17 @@ class DftbInput(Model):
             "oneOf": [
                 {
                     "properties": {
-                        "hamiltonian": {"const": DftbHamiltonian.XTB.value},
-                        "xtb_method": xtb_method,
-                    }
-                },
-                {
-                    "properties": {
                         "hamiltonian": {"const": DftbHamiltonian.DFTB.value},
                         "skf_set": skf_set,
                         "skf_prefix": skf_prefix,
                         "scc": scc,
                         "third_order": third_order,
+                    }
+                },
+                {
+                    "properties": {
+                        "hamiltonian": {"const": DftbHamiltonian.XTB.value},
+                        "xtb_method": xtb_method,
                     }
                 },
             ]

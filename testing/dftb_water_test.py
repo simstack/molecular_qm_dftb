@@ -1,6 +1,6 @@
 import asyncio
 
-from molecular_qm_dftb import DftbInput, XtbMethod, dftb_calculator
+from molecular_qm_dftb import DftbInput, dftb_calculator
 from molecular_qm_models.molecule import Atom, Molecule
 from simstack.core.context import context
 from simstack.models import Parameters
@@ -23,7 +23,6 @@ async def main():
     await context.initialize()
     water = make_water()
     opts = DftbInput(
-        xtb_method=XtbMethod.GFN2,
         compute_gradients=True,
         compute_charges=True,
     )
