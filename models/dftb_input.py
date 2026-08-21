@@ -173,8 +173,6 @@ class DftbInput(Model):
         kpoint_mesh = props.pop("kpoint_mesh", None)
         extpot = props.pop("external_potential", None)
         extpotgrad = props.pop("external_potential_gradient", None)
-        max_opt = props.pop("max_optimization_steps", None)
-        force_tol = props.pop("force_tolerance", None)
 
         schema.setdefault("dependencies", {})
         schema["dependencies"]["hamiltonian"] = {
@@ -229,18 +227,6 @@ class DftbInput(Model):
                         "use_external_potential": {"const": True},
                         "external_potential": extpot,
                         "external_potential_gradient": extpotgrad,
-                    }
-                },
-            ]
-        }
-        schema["dependencies"]["optimization"] = {
-            "oneOf": [
-                {"properties": {"optimization": {"const": False}}},
-                {
-                    "properties": {
-                        "optimization": {"const": True},
-                        "max_optimization_steps": max_opt,
-                        "force_tolerance": force_tol,
                     }
                 },
             ]
