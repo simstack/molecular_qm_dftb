@@ -7,6 +7,11 @@ from molecular_qm_dftb.models.dftb_input import (
     XtbMethod,
 )
 
+try:
+    from ._version import __version__
+except ImportError:  # pragma: no cover
+    __version__ = "0.0.0"
+
 __all__ = [
     "dftb_calculator",
     "dftb_list_calculator",
@@ -14,4 +19,5 @@ __all__ = [
     "DftbInput",
     "SkfSet",
     "XtbMethod",
+    "__version__",
 ]

@@ -25,6 +25,18 @@ and the node drives the ctypes Python API (`dftbplus.DftbPlus`).
   [`molecular_qm_models`](https://github.com/simstack/molecular_qm_models),
   [`simstack`](https://github.com/simstack/simstack) (`fix-git-pull`).
 
+## Versioning
+
+The package version is derived from Git tags ([Semantic Versioning](https://semver.org/)) by `hatch-vcs`. Do not set `project.version` by hand.
+
+Pushes to the default branch run [python-semantic-release](https://github.com/python-semantic-release/python-semantic-release). It reads [Conventional Commits](https://www.conventionalcommits.org/) since the last tag and, when a bump is required, writes `CHANGELOG.md`, tags `vX.Y.Z`, and creates a GitHub Release.
+
+| Prefix | Bump |
+|---|---|
+| `fix:` | patch |
+| `feat:` | minor |
+| `BREAKING CHANGE:` / `feat!:` | major |
+
 ## Local Docker image
 
 Build from the **simstack-model repository root**:

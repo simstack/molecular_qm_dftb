@@ -34,3 +34,7 @@ detailed.out
 band.out
 charges.bin
 md.out
+
+# hatch-vcs (generated; do not commit)
+_version.py
+

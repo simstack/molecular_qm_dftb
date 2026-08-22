@@ -1,7 +1,7 @@
 # Build from this capability repository:
-#   docker build --build-arg UV_GIT_SHAS=$(python resolve_uv_git_shas.py pyproject.docker) -t molecular-qm-dftb:latest .
+#   docker build --build-arg UV_GIT_SHAS=$(python resolve_uv_git_shas.py pyproject.docker) --build-arg PACKAGE_VERSION=$(hatch version) -t molecular-qm-dftb:latest .
 # From simstack-model:
-#   docker build --build-arg UV_GIT_SHAS=$(python scripts/resolve_uv_git_shas.py molecular_qm_dftb/pyproject.docker) -t molecular-qm-dftb:latest -f molecular_qm_dftb/Dockerfile molecular_qm_dftb
+#   docker build --build-arg UV_GIT_SHAS=$(python scripts/resolve_uv_git_shas.py molecular_qm_dftb/pyproject.docker) --build-arg PACKAGE_VERSION=$(hatch version) -t molecular-qm-dftb:latest -f molecular_qm_dftb/Dockerfile molecular_qm_dftb
 # Do not pass SIMSTACK_SHA: the Dockerfile cache key is UV_GIT_SHAS.
 #
 # Dual-use: capability tree is not installable on host (no pyproject.toml).
@@ -65,9 +65,13 @@ COPY . /build/molecular_qm_dftb
 WORKDIR /build/molecular_qm_dftb
 # uv pip install . uses pyproject.docker. UV_GIT_SHAS is only a cache key:
 # resolved commits of those git sources, so this layer rebuilds when a pinned
-# branch (e.g. fix-git-pull) moves.
+# branch (e.g. fix-git-pull) moves. PACKAGE_VERSION is for hatch-vcs when
+# .git is not in the image (SETUPTOOLS_SCM_PRETEND_VERSION).
 ARG UV_GIT_SHAS=unknown
+ARG PACKAGE_VERSION=0.1.0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${PACKAGE_VERSION}
 RUN echo "uv git sources ${UV_GIT_SHAS}" \
+ && echo "package version ${PACKAGE_VERSION}" \
  && cp pyproject.docker pyproject.toml \
  && uv pip install --system . "setuptools>=80.9.0" \
  && python -c "from molecular_qm_dftb.models.dftb_input import DftbInput; \
@@ -78,7 +82,7 @@ from dftbplus import DftbPlus; \
 print('dftbplus', dftbplus.__file__); \
 print('simstack', simstack.__file__); \
 print('models', molecular_qm_models.__file__); \
-print('dftb', molecular_qm_dftb.__file__)"
+print('dftb', molecular_qm_dftb.__file__, molecular_qm_dftb.__version__)"
 
 WORKDIR /app
 ENTRYPOINT ["python", "-m", "simstack.core.run_node"]
