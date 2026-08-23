@@ -69,7 +69,7 @@ async def serial_dftb_list_calculator(
     total = len(molecules)
     node_runner.info(f"Running DFTB+ on {total} molecules in sequence")
 
-    results = DataSetSection(name="results")
+    results = DataSetSection()
 
     for index, molecule in enumerate(molecules, start=1):
         node_runner.info(f"Running DFTB+ molecule {index}/{total}")
