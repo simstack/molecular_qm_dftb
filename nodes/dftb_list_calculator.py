@@ -30,7 +30,7 @@ async def dftb_list_calculator(
     node_runner = kwargs["node_runner"]
     node_runner.info(f"Running DFTB+ on {len(molecules)} molecules")
 
-    async with MassRunner(dftb_calculator, **kwargs) as mass_result:
+    async with MassRunner(dftb_calculator, max_concurrency=5, **kwargs) as mass_result:
         for molecule in molecules:
             mass_result.create_tasks(molecule, opts)
 
