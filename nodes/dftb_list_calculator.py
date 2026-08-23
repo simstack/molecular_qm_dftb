@@ -19,6 +19,9 @@ async def dftb_list_calculator(
         molecules (MoleculeList): Molecules to evaluate with the same DftbInput.
         opts (DftbInput): Shared DFTB+/xTB options.
 
+    Called Nodes:
+        dftb_calculator (Node): DFTB+/xTB calculation.
+
     SimstackResult:
         dataset (DataSet): One section named ``results``. Each row has the
             ``dftb_calculator`` node_runner outputs plus the input molecule and
