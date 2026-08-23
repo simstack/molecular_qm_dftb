@@ -47,7 +47,7 @@ async def dftb_list_calculator(
 
 
 @node
-async def serial_deftb_list_calculator(
+async def serial_dftb_list_calculator(
     molecules: MoleculeList, opts: DftbInput, **kwargs
 ) -> SimstackResult:
     """
