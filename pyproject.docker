@@ -55,10 +55,10 @@ bypass-selection = true
 
 [tool.uv.sources]
 molecular_qm_models = { git = "https://github.com/simstack/molecular_qm_models.git" }
-simstack = { git = "https://github.com/simstack/simstack.git", rev = "fix-git-pull" }
+simstack = { git = "https://github.com/simstack/simstack.git", rev = "fix-node-submission-logic" }
 
 [tool.uv]
 override-dependencies = [
     "molecular_qm_models @ git+https://github.com/simstack/molecular_qm_models.git",
-    "simstack @ git+https://github.com/simstack/simstack.git@fix-git-pull",
+    "simstack @ git+https://github.com/simstack/simstack.git@fix-node-submission-logic",
 ]
