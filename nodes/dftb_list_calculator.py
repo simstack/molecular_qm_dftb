@@ -20,7 +20,7 @@ async def dftb_list_calculator(
         opts (DftbInput): Shared DFTB+/xTB options.
 
     Called Nodes:
-        dftb_calculator (Node): DFTB+/xTB calculation.
+        dftb_calculator
 
     SimstackResult:
         dataset (DataSet): One section named ``results``. Each row has the
