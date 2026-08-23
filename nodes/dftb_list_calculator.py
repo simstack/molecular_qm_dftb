@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from molecular_qm_dftb.models.dftb_input import DftbInput
 from molecular_qm_dftb.nodes.dftb_calculator import dftb_calculator
 from molecular_qm_models.molecule import MoleculeList
@@ -5,7 +7,7 @@ from simstack.core.context import context
 from simstack.core.node import node
 from simstack.core.simstack_result import SimstackResult
 from simstack.methods.mass_runner import MassRunner
-from simstack.models import DataSet, DataSetSection
+from simstack.models import DataSet, DataSetSection, StringData, DataSetMetadata
 
 
 @node
@@ -69,6 +71,11 @@ async def serial_dftb_list_calculator(
     total = len(molecules)
     node_runner.info(f"Running DFTB+ on {total} molecules in sequence")
 
+    dataset_metadata = DataSetMetadata(field_name="serialdftb_calculator",
+                                       data={
+                                           "created_at": datetime.now().isoformat()
+                                       })
+
     results = DataSetSection()
 
     for index, molecule in enumerate(molecules, start=1):
@@ -76,18 +83,20 @@ async def serial_dftb_list_calculator(
         node_runner.qm_result = None
         calc_result = await dftb_calculator(molecule, opts, **kwargs)
 
+        if isinstance(calc_result, SimstackResult) and hasattr(calc_result, "status"):
+            node_runner.info(f" dftb_calculator returned {calc_result.status}")
+
         row = {
             "input_molecule": molecule,
             "input_opts": opts,
-            "success": bool(calc_result.success),
-            "message": calc_result.message,
+            "message": StringData(value=calc_result.message),
         }
         qm_result = getattr(node_runner, "qm_result", None)
         if qm_result is not None:
             row["result_dftb_result"] = qm_result
-        results.append(row)
+        results.add_row(row)
 
-    dataset = DataSet()
+    dataset = DataSet(field_name="serial_dftb_calculator", metadata=dataset_metadata)
     dataset["results"] = results
     await dataset.save(context.db)
 
