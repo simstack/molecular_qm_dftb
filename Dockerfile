@@ -15,6 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     curl \
+    cmake \
+    gfortran \
+    libopenblas-dev \
+    liblapack-dev \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
@@ -26,18 +30,35 @@ ENV PATH="/opt/conda/bin:/root/.local/bin:$PATH"
 
 WORKDIR /app
 
-# Serial (OpenMP) DFTB+ 25.1 plus the ctypes Python API. tblite is a
-# runtime dep of the conda-forge dftbplus build, so GFN1/GFN2-xTB works
-# without Slater-Koster files. Do not conda-install pymatgen: it pulls
-# X11/matplotlib and Kaniko OOMs on the standard GitLab runner.
+# Install Python runtime deps (dftbplus is built from source below).
 RUN micromamba install -y -n base -c conda-forge \
     python=3.12.12 \
     numpy \
-    "dftbplus=25.1=nompi_*" \
-    dftbplus-python=25.1 \
-    && micromamba clean --all --yes \
-    && test -e /opt/conda/lib/libdftbplus.so \
-    && test -x /opt/conda/bin/dftb+
+    && micromamba clean --all --yes
+
+RUN git clone https://github.com/dftbplus/dftbplus.git /tmp/dftbplus \
+ && cd /tmp/dftbplus \
+ && git checkout 25.1 \
+ && git submodule update --init --recursive \
+ && FC=gfortran CC=gcc cmake -S . -B _build_instance \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/root/opt/dftbplus-25.1-instance \
+    -DWITH_API=ON \
+    -DWITH_PYTHON=ON \
+    -DINSTANCE_SAFE_BUILD=ON \
+    -DBUILD_SHARED_LIBS=ON \
+    -DENABLE_DYNAMIC_LOADING=ON \
+    -DWITH_MPI=OFF \
+    -DWITH_OMP=ON \
+    -DWITH_ARPACK=OFF \
+    -DWITH_POISSON=OFF \
+    -DWITH_TRANSPORT=OFF \
+    -DWITH_CHIMES=OFF \
+ && cmake --build _build_instance -j \
+ && cmake --install _build_instance \
+ && test -e /root/opt/dftbplus-25.1-instance/lib/libdftbplus.so \
+ && test -x /root/opt/dftbplus-25.1-instance/bin/dftb+ \
+ && rm -rf /tmp/dftbplus
 
 # 3ob-3-1 / mio-1-1 SKF sets (CC-BY-SA; cite the 3ob/mio README references).
 RUN mkdir -p /opt/dftbplus/params \
@@ -52,13 +73,17 @@ RUN mkdir -p /opt/dftbplus/params \
  && rm -rf /tmp/3ob-main /tmp/mio-main
 
 ENV DFTBPLUS_PARAM_DIR=/opt/dftbplus/params
-ENV DFTBPLUS_LIB=/opt/conda/lib/libdftbplus
+ENV DFTBPLUS_LIB=/root/opt/dftbplus-25.1-instance/lib/libdftbplus
+ENV PATH="/root/opt/dftbplus-25.1-instance/bin:/opt/conda/bin:/root/.local/bin:$PATH"
+ENV LD_LIBRARY_PATH=/root/opt/dftbplus-25.1-instance/lib
+# Make the Python API built by cmake (WITH_PYTHON=ON) importable.
+ENV PYTHONPATH=/root/opt/dftbplus-25.1-instance/lib/python3.12/site-packages
 # glibc 2.41+ (Docker Desktop) rejects Fortran SOs that request an executable stack.
 ENV GLIBC_TUNABLES=glibc.rtld.execstack=2
 
 ENV UV_PYTHON=/opt/conda/bin/python
 ENV UV_PROJECT_ENVIRONMENT=/opt/conda
-ENV PATH="/opt/conda/bin:/root/.local/bin:$PATH"
+ENV PATH="/root/opt/dftbplus-25.1-instance/bin:/opt/conda/bin:/root/.local/bin:$PATH"
 
 # Capability package only — deps install from git via pyproject.docker.
 COPY . /build/molecular_qm_dftb
@@ -77,9 +102,9 @@ RUN echo "uv git sources ${UV_GIT_SHAS}" \
  && python -c "from molecular_qm_dftb.models.dftb_input import DftbInput; \
 o=DftbInput(optimization=True); \
 assert o.optimization is True and o.compute_gradients is True" \
- && python -c "import dftbplus, simstack, molecular_qm_models, molecular_qm_dftb; \
-from dftbplus import DftbPlus; \
-print('dftbplus', dftbplus.__file__); \
+ && python -c "from dftbplus import DftbPlus; print(DftbPlus)" \
+ && python -c "import simstack, molecular_qm_models, molecular_qm_dftb; \
+print('dftb+', '/root/opt/dftbplus-25.1-instance/bin/dftb+'); \
 print('simstack', simstack.__file__); \
 print('models', molecular_qm_models.__file__); \
 print('dftb', molecular_qm_dftb.__file__, molecular_qm_dftb.__version__)"
