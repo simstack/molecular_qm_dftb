@@ -1,7 +1,7 @@
 # Molecular QM DFTB+
 
 DFTB+ capabilities for molecular quantum mechanics within the Simstack framework.
-The container builds DFTB+ 25.1 from source (instance-safe, shared-library API)
+The container ships conda-forge `dftbplus=25.1=nompi_*` and `dftbplus-python=25.1`,
 and the node drives the ctypes Python API (`dftbplus.DftbPlus`).
 
 ## Nodes
@@ -15,15 +15,6 @@ and the node drives the ctypes Python API (`dftbplus.DftbPlus`).
 - `dftb_list_calculator` — `MoleculeList` + `DftbInput`; runs `dftb_calculator`
   on every molecule in parallel and returns a `DataSet` with one section
   named `results`.
-
-Each `dftb_calculator` job is executed in a **child process with its own
-working directory**. `INSTANCE_SAFE_BUILD` only makes DFTB+ free of writable
-*memory* globals; Fortran still opens `detailed.out` and `dftbplus.log` by
-fixed names in the process CWD. Concurrent in-process API instances therefore
-hit gfortran 5004 (`File already opened in another unit`) and `error stop`,
-which kills the Docker PID so Simstack never sees `node_runner.fail()`. The
-child process isolates those files; a Fortran abort becomes a non-zero exit
-and the DFTB+ log is returned as the node error.
 
 ## Dual-use
 

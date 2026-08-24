@@ -1,21 +1,17 @@
-import asyncio
 import logging
-import tempfile
 from pathlib import Path
-from shutil import copyfile, rmtree
+from shutil import copyfile
 
 import numpy as np
 from odmantic import ObjectId
 
 from molecular_qm_dftb.lib.dftb_runner import (
     AU_TO_DEBYE,
-    HSD_NAME,
-    LOG_NAME,
+    DftbPlusSession,
     dipole_au,
     lattice_bohr,
     molecule_coords_bohr,
     molecule_from_coords,
-    run_dftb_isolated,
 )
 from molecular_qm_dftb.lib.hsd import build_hsd
 from molecular_qm_dftb.models.dftb_input import DftbInput
@@ -71,26 +67,10 @@ def _gradient_table(molecule, gradients):
     return table
 
 
-def _attach_run_files(node_runner, scratch: Path, attached: set) -> None:
-    if node_runner is None:
-        return
-    for name in (LOG_NAME, "detailed.out"):
-        if name in attached:
-            continue
-        artifact = scratch / name
-        if artifact.exists():
-            node_runner.info_files.append(
-                FileStack.from_local_file(
-                    artifact, in_memory=True, is_hashable=True, secure_source=True
-                )
-            )
-            attached.add(name)
-
-
-def _write_hsd(opts: DftbInput, molecule: Molecule, node_runner, directory: Path) -> Path:
-    hsd_path = directory / HSD_NAME
+def _write_hsd(opts: DftbInput, molecule: Molecule, node_runner) -> Path:
+    hsd_path = Path("dftb_in.hsd")
     if opts.use_hsd_file and opts.hsd_file is not None:
-        downloaded = Path(opts.hsd_file.get(local_dir=directory))
+        downloaded = Path(opts.hsd_file.get(local_dir=Path(".")))
         if downloaded.resolve() != hsd_path.resolve():
             if hsd_path.exists():
                 hsd_path.unlink()
@@ -216,24 +196,20 @@ async def _steepest_descent(session, coords, latvecs, max_steps, force_tol, kwar
             charts = await _save_opt_charts(energy_history, grad_history, kwargs, charts)
         return max_force
 
-    try:
-        for iteration in range(1, max_steps + 1):
-            session.set_geometry_bohr(coords, latvecs)
-            max_force = await record_and_maybe_chart(iteration)
-            if max_force < force_tol:
-                if node_runner is not None:
-                    node_runner.info(f"Geometry converged in {iteration} steps")
-                if iteration % _CHART_INTERVAL != 0:
-                    charts = await _save_opt_charts(energy_history, grad_history, kwargs, charts)
-                return coords, energy, grads, True
-            coords = coords - step * grads
-        if node_runner is not None:
-            node_runner.warning(f"Geometry not converged after {max_steps} steps")
+    for iteration in range(1, max_steps + 1):
         session.set_geometry_bohr(coords, latvecs)
-        await record_and_maybe_chart(max_steps + 1, force_chart=True)
-    except Exception as e:
-        node_runner.error(f"Steepest decent optimization failed: {e}")
-        raise
+        max_force = await record_and_maybe_chart(iteration)
+        if max_force < force_tol:
+            if node_runner is not None:
+                node_runner.info(f"Geometry converged in {iteration} steps")
+            if iteration % _CHART_INTERVAL != 0:
+                charts = await _save_opt_charts(energy_history, grad_history, kwargs, charts)
+            return coords, energy, grads, True
+        coords = coords - step * grads
+    if node_runner is not None:
+        node_runner.warning(f"Geometry not converged after {max_steps} steps")
+    session.set_geometry_bohr(coords, latvecs)
+    await record_and_maybe_chart(max_steps + 1, force_chart=True)
     return coords, energy, grads, False
 
 
@@ -255,8 +231,8 @@ async def dftb_calculator(molecule: Molecule, opts: DftbInput, **kwargs) -> Sims
         gradients (SimpleTable): Cartesian gradients in Hartree/Bohr when requested.
     """
     node_runner = kwargs["node_runner"]
-    scratch = Path(tempfile.mkdtemp(prefix="dftb_"))
-    attached_files: set = set()
+    logfile = Path("dftbplus.log")
+    session = None
     try:
         if opts.use_external_potential:
             natom = len(molecule.atoms)
@@ -265,48 +241,47 @@ async def dftb_calculator(molecule: Molecule, opts: DftbInput, **kwargs) -> Sims
             if opts.external_potential_gradient is not None and len(opts.external_potential_gradient) != natom * 3:
                 return node_runner.fail("external_potential_gradient must have length 3 * natom")
 
-        _write_hsd(opts, molecule, node_runner, scratch)
+        _write_hsd(opts, molecule, node_runner)
+        session = DftbPlusSession(hsdpath="dftb_in.hsd", logfile=str(logfile))
+        n_atoms = session.get_nr_atoms()
+        if n_atoms != len(molecule.atoms):
+            return node_runner.fail(
+                f"API atom count {n_atoms} does not match molecule ({len(molecule.atoms)})"
+            )
+
         coords = molecule_coords_bohr(molecule)
         latvecs = None
         if opts.use_periodic:
             latvecs = lattice_bohr(opts.lattice_a, opts.lattice_b, opts.lattice_c)
 
-        request = {
-            "expected_n_atoms": len(molecule.atoms),
-            "coords": coords,
-            "latvecs": latvecs,
-            "optimization": opts.optimization,
-            "max_optimization_steps": opts.max_optimization_steps,
-            "force_tolerance": opts.force_tolerance,
-            "compute_gradients": opts.compute_gradients,
-            "compute_charges": opts.compute_charges,
-            "compute_cm5": opts.compute_cm5,
-            "extpot": opts.external_potential if opts.use_external_potential else None,
-            "extpotgrad": (
-                opts.external_potential_gradient if opts.use_external_potential else None
-            ),
-        }
         if opts.use_external_potential:
+            session.set_external_potential(
+                opts.external_potential, opts.external_potential_gradient
+            )
             node_runner.info("Applied population-independent external potential")
 
-        # Child process + unique CWD: Fortran detailed.out is not shared, and
-        # error stop cannot kill the Docker PID (see run_dftb_isolated).
-        output = await asyncio.to_thread(run_dftb_isolated, scratch, request)
-        n_atoms = output["n_atoms"]
-        coords = output["coords"]
-        energy = output["energy"]
-        grads = output["grads"]
-        charges = output["charges"]
-        cm5 = output["cm5"]
-        optimized = output["optimized"]
-        if output.get("cm5_warning"):
-            node_runner.warning(f"get_cm5_charges failed: {output['cm5_warning']}")
+        optimized = None
         if opts.optimization:
-            await _save_opt_charts(
-                output.get("energy_history") or [],
-                output.get("grad_history") or [],
+            coords, energy, grads, optimized = await _steepest_descent(
+                session,
+                coords,
+                latvecs,
+                opts.max_optimization_steps,
+                opts.force_tolerance,
                 kwargs,
             )
+        else:
+            session.set_geometry_bohr(coords, latvecs)
+            energy = session.get_energy()
+            grads = session.get_gradients() if opts.compute_gradients else None
+
+        charges = session.get_gross_charges() if opts.compute_charges else None
+        cm5 = None
+        if opts.compute_cm5:
+            try:
+                cm5 = session.get_cm5_charges()
+            except Exception as exc:
+                node_runner.warning(f"get_cm5_charges failed: {exc}")
 
         final_structure = molecule_from_coords(molecule, coords)
         if charges is not None:
@@ -346,11 +321,19 @@ async def dftb_calculator(molecule: Molecule, opts: DftbInput, **kwargs) -> Sims
         return node_runner.succeed()
     except Exception as exc:
         logger.error("DFTB+ calculation failed: %s", exc)
-        _attach_run_files(node_runner, scratch, attached_files)
         if opts.tolerate_failure:
             node_runner.warning(f"DFTB+ failed but failure is tolerated: {exc}")
             return node_runner.succeed()
         return node_runner.fail(f"DFTB+ execution failed: {exc}")
     finally:
-        _attach_run_files(node_runner, scratch, attached_files)
-        rmtree(scratch, ignore_errors=True)
+        if session is not None:
+            try:
+                session.close()
+            except Exception:
+                pass
+        if node_runner is not None and logfile.exists():
+            node_runner.info_files.append(
+                FileStack.from_local_file(
+                    logfile, in_memory=True, is_hashable=True, secure_source=True
+                )
+            )
