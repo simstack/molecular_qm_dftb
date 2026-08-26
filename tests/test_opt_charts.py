@@ -4,7 +4,11 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 from odmantic import ObjectId
 
-from molecular_qm_dftb.nodes.dftb_calculator import _steepest_descent
+from molecular_qm_dftb.nodes.dftb_calculator import (
+    _conjugate_gradient,
+    _fire,
+    _steepest_descent,
+)
 from simstack.models.charts_artifact import ChartArtifactModel
 
 
@@ -36,7 +40,9 @@ class FakeSession:
         return np.array(grads, dtype=np.float64)
 
 
-def _run_opt(max_steps, force_tol, energies, gradients, db, task_id):
+def _run_opt(max_steps, force_tol, energies, gradients, db, task_id, optimizer=None):
+    if optimizer is None:
+        optimizer = _steepest_descent
     node_runner = MagicMock()
     node_runner.task_id = str(task_id)
     session = FakeSession(energies, gradients)
@@ -44,7 +50,7 @@ def _run_opt(max_steps, force_tol, energies, gradients, db, task_id):
     kwargs = {"node_runner": node_runner, "task_id": str(task_id)}
     with patch("molecular_qm_dftb.nodes.dftb_calculator._get_db", return_value=db):
         result = asyncio.run(
-            _steepest_descent(session, coords, None, max_steps, force_tol, kwargs)
+            optimizer(session, coords, None, max_steps, force_tol, kwargs)
         )
     return result, node_runner
 
@@ -87,3 +93,55 @@ def test_opt_writes_charts_when_converged_before_interval():
     assert len(db.saved) == 2
     assert {chart.series[0].yKey for chart in db.saved} == {"energy", "grad_norm"}
     assert db.saved[0].parent_id == task_id
+
+
+def test_conjugate_gradient_converges_with_decreasing_gradients():
+    task_id = ObjectId()
+    db = FakeDb()
+    n_steps = 15
+    energies = [-18.0 - 0.02 * i for i in range(n_steps + 2)]
+    gradients = [np.full((2, 3), 0.05 * (0.7 ** i)) for i in range(n_steps + 2)]
+    result, _ = _run_opt(n_steps, 1e-3, energies, gradients, db, task_id, optimizer=_conjugate_gradient)
+    assert result[3] is True
+    assert len(db.saved) >= 2
+    assert {chart.series[0].yKey for chart in db.saved} == {"energy", "grad_norm"}
+
+
+def test_conjugate_gradient_writes_charts_at_interval():
+    task_id = ObjectId()
+    db = FakeDb()
+    n_steps = 23
+    energies = [-18.0 - 0.01 * i for i in range(n_steps + 2)]
+    gradients = [np.full((2, 3), 0.05) for _ in range(n_steps + 2)]
+    _run_opt(n_steps, 1e-8, energies, gradients, db, task_id, optimizer=_conjugate_gradient)
+    assert len(db.saved) >= 6
+    assert all(isinstance(chart, ChartArtifactModel) for chart in db.saved)
+    titles = [chart.title.text for chart in db.saved]
+    assert titles.count("DFTB+ optimization energy") == 3
+    assert titles.count("DFTB+ optimization gradient norm") == 3
+
+
+def test_fire_converges_with_decreasing_gradients():
+    task_id = ObjectId()
+    db = FakeDb()
+    n_steps = 20
+    energies = [-18.0 - 0.02 * i for i in range(n_steps + 2)]
+    gradients = [np.full((2, 3), 0.05 * (0.7 ** i)) for i in range(n_steps + 2)]
+    result, _ = _run_opt(n_steps, 1e-3, energies, gradients, db, task_id, optimizer=_fire)
+    assert result[3] is True
+    assert len(db.saved) >= 2
+    assert {chart.series[0].yKey for chart in db.saved} == {"energy", "grad_norm"}
+
+
+def test_fire_writes_charts_at_interval():
+    task_id = ObjectId()
+    db = FakeDb()
+    n_steps = 23
+    energies = [-18.0 - 0.01 * i for i in range(n_steps + 2)]
+    gradients = [np.full((2, 3), 0.05) for _ in range(n_steps + 2)]
+    _run_opt(n_steps, 1e-8, energies, gradients, db, task_id, optimizer=_fire)
+    assert len(db.saved) >= 6
+    assert all(isinstance(chart, ChartArtifactModel) for chart in db.saved)
+    titles = [chart.title.text for chart in db.saved]
+    assert titles.count("DFTB+ optimization energy") == 3
+    assert titles.count("DFTB+ optimization gradient norm") == 3

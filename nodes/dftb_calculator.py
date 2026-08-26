@@ -14,7 +14,7 @@ from molecular_qm_dftb.lib.dftb_runner import (
     molecule_from_coords,
 )
 from molecular_qm_dftb.lib.hsd import build_hsd
-from molecular_qm_dftb.models.dftb_input import DftbInput
+from molecular_qm_dftb.models.dftb_input import DftbInput, OptimizationMethod
 from molecular_qm_models.molecule import Molecule
 from molecular_qm_models.qm_result import QMResult
 from simstack.core.context import context
@@ -171,17 +171,13 @@ async def _save_opt_charts(energy_data, grad_data, kwargs, existing=(None, None)
     return energy_chart, grad_chart
 
 
-async def _steepest_descent(session, coords, latvecs, max_steps, force_tol, kwargs):
-    node_runner = kwargs.get("node_runner")
-    step = 0.2
-    energy = None
-    grads = None
+def _make_recorder(session, kwargs):
+    node_runner = kwargs.get("node_runner") if kwargs else None
     energy_history = []
     grad_history = []
-    charts = (None, None)
+    charts = [None, None]
 
     async def record_and_maybe_chart(iteration, *, force_chart=False):
-        nonlocal energy, grads, charts
         energy = session.get_energy()
         grads = session.get_gradients()
         max_force = float(np.max(np.linalg.norm(grads, axis=1)))
@@ -193,24 +189,148 @@ async def _steepest_descent(session, coords, latvecs, max_steps, force_tol, kwar
         energy_history.append({"step": iteration, "energy": float(energy)})
         grad_history.append({"step": iteration, "grad_norm": grad_norm})
         if force_chart or iteration % _CHART_INTERVAL == 0:
-            charts = await _save_opt_charts(energy_history, grad_history, kwargs, charts)
-        return max_force
+            charts[0], charts[1] = await _save_opt_charts(
+                energy_history, grad_history, kwargs, (charts[0], charts[1])
+            )
+        return energy, grads, max_force
+
+    async def final_chart():
+        await _save_opt_charts(
+            energy_history, grad_history, kwargs, (charts[0], charts[1])
+        )
+
+    return record_and_maybe_chart, final_chart, node_runner
+
+
+async def _steepest_descent(session, coords, latvecs, max_steps, force_tol, kwargs):
+    record, final_chart, node_runner = _make_recorder(session, kwargs)
+    step = 0.2
+    energy = None
+    grads = None
 
     for iteration in range(1, max_steps + 1):
         session.set_geometry_bohr(coords, latvecs)
-        max_force = await record_and_maybe_chart(iteration)
+        energy, grads, max_force = await record(iteration)
         if max_force < force_tol:
             if node_runner is not None:
                 node_runner.info(f"Geometry converged in {iteration} steps")
             if iteration % _CHART_INTERVAL != 0:
-                charts = await _save_opt_charts(energy_history, grad_history, kwargs, charts)
+                await final_chart()
             return coords, energy, grads, True
         coords = coords - step * grads
     if node_runner is not None:
         node_runner.warning(f"Geometry not converged after {max_steps} steps")
     session.set_geometry_bohr(coords, latvecs)
-    await record_and_maybe_chart(max_steps + 1, force_chart=True)
+    await record(max_steps + 1, force_chart=True)
     return coords, energy, grads, False
+
+
+async def _conjugate_gradient(session, coords, latvecs, max_steps, force_tol, kwargs):
+    record, final_chart, node_runner = _make_recorder(session, kwargs)
+    step_size = 0.2
+    energy = None
+    grads = None
+    prev_grads = None
+    direction = None
+
+    for iteration in range(1, max_steps + 1):
+        session.set_geometry_bohr(coords, latvecs)
+        energy, grads, max_force = await record(iteration)
+        if max_force < force_tol:
+            if node_runner is not None:
+                node_runner.info(f"CG converged in {iteration} steps")
+            if iteration % _CHART_INTERVAL != 0:
+                await final_chart()
+            return coords, energy, grads, True
+
+        if prev_grads is not None and direction is not None:
+            delta = grads - prev_grads
+            denom = float(np.dot(prev_grads.ravel(), prev_grads.ravel()))
+            if denom > 0:
+                beta = float(np.dot(grads.ravel(), delta.ravel())) / denom
+            else:
+                beta = 0.0
+            if beta < 0:
+                beta = 0.0
+            direction = -grads + beta * direction
+        else:
+            direction = -grads
+
+        prev_grads = grads.copy()
+        coords = coords + step_size * direction
+
+    if node_runner is not None:
+        node_runner.warning(f"CG not converged after {max_steps} steps")
+    session.set_geometry_bohr(coords, latvecs)
+    await record(max_steps + 1, force_chart=True)
+    return coords, energy, grads, False
+
+
+async def _fire(session, coords, latvecs, max_steps, force_tol, kwargs):
+    record, final_chart, node_runner = _make_recorder(session, kwargs)
+
+    dt = 1.0
+    dt_max = 10.0
+    n_min = 5
+    f_inc = 1.1
+    f_dec = 0.5
+    alpha_start = 0.1
+    f_alpha = 0.99
+
+    alpha = alpha_start
+    n_pos = 0
+    velocity = np.zeros_like(coords)
+    energy = None
+    grads = None
+
+    for iteration in range(1, max_steps + 1):
+        session.set_geometry_bohr(coords, latvecs)
+        energy, grads, max_force = await record(iteration)
+        if max_force < force_tol:
+            if node_runner is not None:
+                node_runner.info(f"FIRE converged in {iteration} steps")
+            if iteration % _CHART_INTERVAL != 0:
+                await final_chart()
+            return coords, energy, grads, True
+
+        forces = -grads
+        power = float(np.dot(velocity.ravel(), forces.ravel()))
+
+        v_norm = np.linalg.norm(velocity)
+        f_norm = np.linalg.norm(forces)
+        if f_norm > 0:
+            f_hat = forces / f_norm
+        else:
+            f_hat = np.zeros_like(forces)
+
+        velocity = (1.0 - alpha) * velocity + alpha * v_norm * f_hat
+
+        if power > 0:
+            n_pos += 1
+            if n_pos > n_min:
+                dt = min(dt * f_inc, dt_max)
+                alpha = alpha * f_alpha
+        else:
+            n_pos = 0
+            dt = dt * f_dec
+            alpha = alpha_start
+            velocity = np.zeros_like(coords)
+
+        velocity = velocity + dt * forces
+        coords = coords + dt * velocity
+
+    if node_runner is not None:
+        node_runner.warning(f"FIRE not converged after {max_steps} steps")
+    session.set_geometry_bohr(coords, latvecs)
+    await record(max_steps + 1, force_chart=True)
+    return coords, energy, grads, False
+
+
+_OPTIMIZERS = {
+    OptimizationMethod.STEEPEST_DESCENT: _steepest_descent,
+    OptimizationMethod.CONJUGATE_GRADIENT: _conjugate_gradient,
+    OptimizationMethod.FIRE: _fire,
+}
 
 
 @node
@@ -261,8 +381,9 @@ async def dftb_calculator(molecule: Molecule, opts: DftbInput, **kwargs) -> Sims
             node_runner.info("Applied population-independent external potential")
 
         optimized = None
-        if opts.optimization:
-            coords, energy, grads, optimized = await _steepest_descent(
+        if opts.optimization_method != OptimizationMethod.NONE:
+            optimizer_fn = _OPTIMIZERS[opts.optimization_method]
+            coords, energy, grads, optimized = await optimizer_fn(
                 session,
                 coords,
                 latvecs,

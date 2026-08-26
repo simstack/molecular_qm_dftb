@@ -5,7 +5,7 @@ name = "molecular_qm_dftb"
 dynamic = ["version"]
 description = "DFTB+ capabilities for molecular quantum mechanics within the Simstack framework"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12, <3.13"
 license = { text = "MIT" }
 authors = [
   { name = "Wolfgang Wenzel", email = "wolfgang.wenzel@kit.edu" }

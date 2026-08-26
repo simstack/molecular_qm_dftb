@@ -1,5 +1,11 @@
 from molecular_qm_dftb.lib.hsd import build_hsd
-from molecular_qm_dftb.models.dftb_input import DftbHamiltonian, DftbInput, SkfSet, XtbMethod
+from molecular_qm_dftb.models.dftb_input import (
+    DftbHamiltonian,
+    DftbInput,
+    OptimizationMethod,
+    SkfSet,
+    XtbMethod,
+)
 from molecular_qm_models.molecule import Atom, Molecule
 
 
@@ -52,9 +58,36 @@ def test_optimization_true_does_not_recurse_and_enables_gradients():
     assert opts.hamiltonian == DftbHamiltonian.DFTB
     assert opts.skf_set == SkfSet.THREE_OB
     assert opts.optimization is True
+    assert opts.optimization_method == OptimizationMethod.STEEPEST_DESCENT
     assert opts.compute_gradients is True
     assert opts.charge == -1
     assert opts.multiplicity == 1
+
+
+def test_optimization_false_maps_to_none_method():
+    opts = DftbInput(optimization=False)
+    assert opts.optimization is False
+    assert opts.optimization_method == OptimizationMethod.NONE
+
+
+def test_optimization_method_enum_sets_compute_gradients():
+    opts = DftbInput(optimization_method="conjugate_gradient")
+    assert opts.optimization_method == OptimizationMethod.CONJUGATE_GRADIENT
+    assert opts.compute_gradients is True
+    assert opts.optimization is True
+
+
+def test_optimization_method_fire():
+    opts = DftbInput(optimization_method=OptimizationMethod.FIRE)
+    assert opts.optimization_method == OptimizationMethod.FIRE
+    assert opts.compute_gradients is True
+    assert opts.optimization is True
+
+
+def test_optimization_method_none_default():
+    opts = DftbInput()
+    assert opts.optimization_method == OptimizationMethod.NONE
+    assert opts.optimization is False
 
 
 def test_periodic_xtb_writes_lattice_and_kpoints():
@@ -73,8 +106,14 @@ def test_periodic_xtb_writes_lattice_and_kpoints():
     assert "2 0 0" in hsd
 
 
-def test_dftb_schema_keeps_optimization_step_fields_in_properties():
+def test_dftb_schema_keeps_optimization_step_fields_in_dependencies():
     schema = DftbInput.json_schema()
-    assert "max_optimization_steps" in schema["properties"]
-    assert "force_tolerance" in schema["properties"]
-    assert "optimization" not in schema.get("dependencies", {})
+    assert "optimization_method" in schema.get("dependencies", {})
+    dep = schema["dependencies"]["optimization_method"]
+    one_of = dep["oneOf"]
+    # first entry is the NONE case
+    assert one_of[0]["properties"]["optimization_method"]["const"] == "none"
+    # the non-none entries should include max_optimization_steps and force_tolerance
+    for entry in one_of[1:]:
+        assert "max_optimization_steps" in entry["properties"]
+        assert "force_tolerance" in entry["properties"]
