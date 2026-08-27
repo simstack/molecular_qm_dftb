@@ -38,3 +38,4 @@ md.out
 # hatch-vcs (generated; do not commit)
 _version.py
 
+/node_models.txt
