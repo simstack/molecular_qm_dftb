@@ -381,7 +381,7 @@ async def dftb_calculator(molecule: Molecule, opts: DftbInput, **kwargs) -> Sims
             node_runner.info("Applied population-independent external potential")
 
         optimized = None
-        if opts.optimization_method != OptimizationMethod.NONE:
+        if opts.optimization:
             optimizer_fn = _OPTIMIZERS[opts.optimization_method]
             coords, energy, grads, optimized = await optimizer_fn(
                 session,

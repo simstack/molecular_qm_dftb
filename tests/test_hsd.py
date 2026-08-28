@@ -64,29 +64,29 @@ def test_optimization_true_does_not_recurse_and_enables_gradients():
     assert opts.multiplicity == 1
 
 
-def test_optimization_false_maps_to_none_method():
+def test_optimization_false_maps_to_steepest_descent_default():
     opts = DftbInput(optimization=False)
     assert opts.optimization is False
-    assert opts.optimization_method == OptimizationMethod.NONE
+    assert opts.optimization_method == OptimizationMethod.STEEPEST_DESCENT
 
 
 def test_optimization_method_enum_sets_compute_gradients():
-    opts = DftbInput(optimization_method="conjugate_gradient")
+    opts = DftbInput(optimization=True, optimization_method="conjugate_gradient")
     assert opts.optimization_method == OptimizationMethod.CONJUGATE_GRADIENT
     assert opts.compute_gradients is True
     assert opts.optimization is True
 
 
 def test_optimization_method_fire():
-    opts = DftbInput(optimization_method=OptimizationMethod.FIRE)
+    opts = DftbInput(optimization=True, optimization_method=OptimizationMethod.FIRE)
     assert opts.optimization_method == OptimizationMethod.FIRE
     assert opts.compute_gradients is True
     assert opts.optimization is True
 
 
-def test_optimization_method_none_default():
+def test_optimization_default():
     opts = DftbInput()
-    assert opts.optimization_method == OptimizationMethod.NONE
+    assert opts.optimization_method == OptimizationMethod.STEEPEST_DESCENT
     assert opts.optimization is False
 
 
@@ -108,12 +108,21 @@ def test_periodic_xtb_writes_lattice_and_kpoints():
 
 def test_dftb_schema_keeps_optimization_step_fields_in_dependencies():
     schema = DftbInput.json_schema()
-    assert "optimization_method" in schema.get("dependencies", {})
-    dep = schema["dependencies"]["optimization_method"]
+    assert "optimization" in schema.get("dependencies", {})
+    dep = schema["dependencies"]["optimization"]
     one_of = dep["oneOf"]
-    # first entry is the NONE case
-    assert one_of[0]["properties"]["optimization_method"]["const"] == "none"
-    # the non-none entries should include max_optimization_steps and force_tolerance
-    for entry in one_of[1:]:
-        assert "max_optimization_steps" in entry["properties"]
-        assert "force_tolerance" in entry["properties"]
+    # first entry is the False case
+    assert one_of[0]["properties"]["optimization"]["const"] is False
+    # the second entry is the True case with optimization fields
+    assert one_of[1]["properties"]["optimization"]["const"] is True
+    assert "optimization_method" in one_of[1]["properties"]
+    assert "max_optimization_steps" in one_of[1]["properties"]
+    assert "force_tolerance" in one_of[1]["properties"]
+
+
+def test_dftb_ui_schema_conditions_on_optimization():
+    ui = DftbInput.ui_schema()
+    assert ui["optimization"]["ui:widget"] == "checkbox"
+    assert ui["optimization_method"]["ui:condition"] == {"optimization": True}
+    assert ui["max_optimization_steps"]["ui:condition"] == {"optimization": True}
+    assert ui["force_tolerance"]["ui:condition"] == {"optimization": True}

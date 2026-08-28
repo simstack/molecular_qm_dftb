@@ -38,4 +38,6 @@ md.out
 # hatch-vcs (generated; do not commit)
 _version.py
 
+/simstack.toml
+/.output.txt
 /node_models.txt

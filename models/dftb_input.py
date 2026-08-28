@@ -28,7 +28,6 @@ class SkfSet(str, Enum):
 
 
 class OptimizationMethod(str, Enum):
-    NONE = "none"
     STEEPEST_DESCENT = "steepest_descent"
     CONJUGATE_GRADIENT = "conjugate_gradient"
     FIRE = "fire"
@@ -78,8 +77,11 @@ class DftbInput(Model):
     )
     compute_cm5: bool = Field(False, json_schema_extra={"description": "Call get_cm5_charges()"})
 
+    optimization: bool = Field(
+        False, json_schema_extra={"description": "Geometry optimization"}
+    )
     optimization_method: OptimizationMethod = Field(
-        OptimizationMethod.NONE,
+        OptimizationMethod.STEEPEST_DESCENT,
         json_schema_extra={"description": "Geometry optimization method"},
     )
     max_optimization_steps: int = Field(
@@ -142,22 +144,9 @@ class DftbInput(Model):
         if not data.get("use_external_potential"):
             data["external_potential"] = None
             data["external_potential_gradient"] = None
-        # backward compatibility: convert legacy optimization bool to enum
-        if "optimization" in data and "optimization_method" not in data:
-            data["optimization_method"] = (
-                OptimizationMethod.STEEPEST_DESCENT.value
-                if data.pop("optimization")
-                else OptimizationMethod.NONE.value
-            )
-        elif "optimization" in data:
-            data.pop("optimization")
-        if data.get("optimization_method", OptimizationMethod.NONE.value) != OptimizationMethod.NONE.value:
+        if data.get("optimization"):
             data["compute_gradients"] = True
         return data
-
-    @property
-    def optimization(self) -> bool:
-        return self.optimization_method != OptimizationMethod.NONE
 
     @model_validator(mode="after")
     def validate_options(self):
@@ -253,30 +242,20 @@ class DftbInput(Model):
             ]
         }
 
+        opt_method = props.pop("optimization_method", None)
         max_opt_steps = props.pop("max_optimization_steps", None)
         force_tol = props.pop("force_tolerance", None)
-        non_none_methods = [
-            m.value for m in OptimizationMethod if m != OptimizationMethod.NONE
-        ]
-        schema["dependencies"]["optimization_method"] = {
+        schema["dependencies"]["optimization"] = {
             "oneOf": [
+                {"properties": {"optimization": {"const": False}}},
                 {
                     "properties": {
-                        "optimization_method": {"const": OptimizationMethod.NONE.value}
+                        "optimization": {"const": True},
+                        "optimization_method": opt_method,
+                        "max_optimization_steps": max_opt_steps,
+                        "force_tolerance": force_tol,
                     }
                 },
-                *[
-                    {
-                        "properties": {
-                            "optimization_method": {"const": method},
-                            **({
-                                "max_optimization_steps": max_opt_steps,
-                                "force_tolerance": force_tol,
-                            } if max_opt_steps and force_tol else {}),
-                        }
-                    }
-                    for method in non_none_methods
-                ],
             ]
         }
         return schema
@@ -303,20 +282,13 @@ class DftbInput(Model):
         ui.setdefault("external_potential_gradient", {})["ui:condition"] = {
             "use_external_potential": True
         }
+        ui["optimization"] = {"ui:widget": "checkbox", "ui:title": "Optimize geometry"}
         ui["optimization_method"] = {
             "ui:widget": "select",
             "ui:title": "Optimization method",
         }
-        ui.setdefault("max_optimization_steps", {})["ui:condition"] = {
-            "optimization_method": {
-                "not": OptimizationMethod.NONE.value,
-            }
-        }
-        ui.setdefault("force_tolerance", {})["ui:condition"] = {
-            "optimization_method": {
-                "not": OptimizationMethod.NONE.value,
-            }
-        }
+        for name in ("optimization_method", "max_optimization_steps", "force_tolerance"):
+            ui.setdefault(name, {})["ui:condition"] = {"optimization": True}
         ui.setdefault("xtb_method", {})["ui:condition"] = {"hamiltonian": DftbHamiltonian.XTB.value}
         for name in ("skf_set", "skf_prefix", "scc", "third_order"):
             ui.setdefault(name, {})["ui:condition"] = {"hamiltonian": DftbHamiltonian.DFTB.value}
