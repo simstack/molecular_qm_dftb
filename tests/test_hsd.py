@@ -90,6 +90,19 @@ def test_optimization_default():
     assert opts.optimization is False
 
 
+def test_legacy_optimization_method_without_flag_enables_optimization():
+    opts = DftbInput.model_validate({"optimization_method": "fire"})
+    assert opts.optimization is True
+    assert opts.optimization_method == OptimizationMethod.FIRE
+    assert opts.compute_gradients is True
+
+
+def test_legacy_optimization_method_none_disables_optimization():
+    opts = DftbInput.model_validate({"optimization_method": "none"})
+    assert opts.optimization is False
+    assert opts.optimization_method == OptimizationMethod.STEEPEST_DESCENT
+
+
 def test_periodic_xtb_writes_lattice_and_kpoints():
     opts = DftbInput(
         hamiltonian=DftbHamiltonian.XTB,

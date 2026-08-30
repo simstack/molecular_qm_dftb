@@ -61,7 +61,7 @@ def test_opt_writes_two_charts_every_ten_steps_and_at_end():
     n_steps = 23
     energies = [-18.0 - 0.01 * i for i in range(n_steps + 2)]
     gradients = [np.full((2, 3), 0.05) for _ in range(n_steps + 2)]
-    _run_opt(n_steps, 1e-8, energies, gradients, db, task_id)
+    _, node_runner = _run_opt(n_steps, 1e-8, energies, gradients, db, task_id)
 
     assert len(db.saved) >= 6
     assert all(isinstance(chart, ChartArtifactModel) for chart in db.saved)
@@ -80,6 +80,8 @@ def test_opt_writes_two_charts_every_ten_steps_and_at_end():
     last_grad = [c for c in db.saved if c.series[0].yKey == "grad_norm"][-1]
     assert [row["step"] for row in last_energy.data][-1] == n_steps + 1
     assert last_grad.data[-1]["grad_norm"] == float(np.linalg.norm(gradients[0]))
+    assert isinstance(node_runner.energy_chart, ChartArtifactModel)
+    assert isinstance(node_runner.gradient_chart, ChartArtifactModel)
 
 
 def test_opt_writes_charts_when_converged_before_interval():
@@ -88,11 +90,13 @@ def test_opt_writes_charts_when_converged_before_interval():
     tiny = np.full((2, 3), 1e-10)
     energies = [-19.0, -19.1]
     gradients = [tiny, tiny]
-    result, _ = _run_opt(20, 1e-6, energies, gradients, db, task_id)
+    result, node_runner = _run_opt(20, 1e-6, energies, gradients, db, task_id)
     assert result[3] is True
     assert len(db.saved) == 2
     assert {chart.series[0].yKey for chart in db.saved} == {"energy", "grad_norm"}
     assert db.saved[0].parent_id == task_id
+    assert isinstance(node_runner.energy_chart, ChartArtifactModel)
+    assert node_runner.energy_chart is db.saved[0] or node_runner.energy_chart is db.saved[1]
 
 
 def test_conjugate_gradient_converges_with_decreasing_gradients():

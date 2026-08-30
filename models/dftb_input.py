@@ -144,6 +144,15 @@ class DftbInput(Model):
         if not data.get("use_external_potential"):
             data["external_potential"] = None
             data["external_potential_gradient"] = None
+        method = data.get("optimization_method")
+        method_is_none = isinstance(method, str) and method.lower() == "none"
+        if method_is_none:
+            data["optimization_method"] = OptimizationMethod.STEEPEST_DESCENT.value
+            if "optimization" not in data:
+                data["optimization"] = False
+        elif "optimization" not in data:
+            # Legacy docs stored only optimization_method (NONE removed).
+            data["optimization"] = method is not None
         if data.get("optimization"):
             data["compute_gradients"] = True
         return data

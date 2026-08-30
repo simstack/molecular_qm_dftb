@@ -133,8 +133,19 @@ def _opt_line_chart(data, y_key, title, y_label, parent_id, existing=None):
     )
 
 
+def _attach_opt_charts(node_runner, energy_chart, grad_chart):
+    if node_runner is None:
+        return
+    if energy_chart is not None:
+        node_runner.energy_chart = energy_chart
+    if grad_chart is not None:
+        node_runner.gradient_chart = grad_chart
+
+
 async def _save_opt_charts(energy_data, grad_data, kwargs, existing=(None, None)):
     node_runner = None if not kwargs else kwargs.get("node_runner")
+    if not energy_data:
+        return existing
     parent_id = _task_parent_id(kwargs)
     if parent_id is None:
         if node_runner is not None:
@@ -142,6 +153,10 @@ async def _save_opt_charts(energy_data, grad_data, kwargs, existing=(None, None)
         return existing
     db = _get_db()
     if db is None:
+        if node_runner is not None:
+            node_runner.warning("Skipping optimization charts: database is not initialized")
+        else:
+            logger.warning("Skipping optimization charts: database is not initialized")
         return existing
     energy_chart = _opt_line_chart(
         list(energy_data),
@@ -168,6 +183,12 @@ async def _save_opt_charts(energy_data, grad_data, kwargs, existing=(None, None)
         else:
             logger.warning("Failed to store optimization charts: %s", exc)
         return existing
+    _attach_opt_charts(node_runner, energy_chart, grad_chart)
+    if node_runner is not None:
+        node_runner.info(
+            f"Saved optimization charts at step {energy_data[-1]['step']} "
+            f"(task_id={parent_id})"
+        )
     return energy_chart, grad_chart
 
 
@@ -195,7 +216,7 @@ def _make_recorder(session, kwargs):
         return energy, grads, max_force
 
     async def final_chart():
-        await _save_opt_charts(
+        charts[0], charts[1] = await _save_opt_charts(
             energy_history, grad_history, kwargs, (charts[0], charts[1])
         )
 
@@ -214,8 +235,7 @@ async def _steepest_descent(session, coords, latvecs, max_steps, force_tol, kwar
         if max_force < force_tol:
             if node_runner is not None:
                 node_runner.info(f"Geometry converged in {iteration} steps")
-            if iteration % _CHART_INTERVAL != 0:
-                await final_chart()
+            await final_chart()
             return coords, energy, grads, True
         coords = coords - step * grads
     if node_runner is not None:
@@ -239,8 +259,7 @@ async def _conjugate_gradient(session, coords, latvecs, max_steps, force_tol, kw
         if max_force < force_tol:
             if node_runner is not None:
                 node_runner.info(f"CG converged in {iteration} steps")
-            if iteration % _CHART_INTERVAL != 0:
-                await final_chart()
+            await final_chart()
             return coords, energy, grads, True
 
         if prev_grads is not None and direction is not None:
@@ -289,8 +308,7 @@ async def _fire(session, coords, latvecs, max_steps, force_tol, kwargs):
         if max_force < force_tol:
             if node_runner is not None:
                 node_runner.info(f"FIRE converged in {iteration} steps")
-            if iteration % _CHART_INTERVAL != 0:
-                await final_chart()
+            await final_chart()
             return coords, energy, grads, True
 
         forces = -grads
@@ -349,6 +367,8 @@ async def dftb_calculator(molecule: Molecule, opts: DftbInput, **kwargs) -> Sims
         mulliken_charges (SimpleTable): Gross / Mulliken charges when requested.
         cm5_charges (SimpleTable): CM5 charges when requested.
         gradients (SimpleTable): Cartesian gradients in Hartree/Bohr when requested.
+        energy_chart (ChartArtifactModel): Optimization energy vs step when optimizing.
+        gradient_chart (ChartArtifactModel): Optimization gradient norm vs step when optimizing.
     """
     node_runner = kwargs["node_runner"]
     logfile = Path("dftbplus.log")
