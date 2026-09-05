@@ -371,6 +371,8 @@ async def dftb_calculator(molecule: Molecule, opts: DftbInput, **kwargs) -> Sims
         gradient_chart (ChartArtifactModel): Optimization gradient norm vs step when optimizing.
     """
     node_runner = kwargs["node_runner"]
+    if molecule.formula and not getattr(node_runner, "custom_name", None):
+        node_runner.custom_name = molecule.formula
     logfile = Path("dftbplus.log")
     session = None
     try:
