@@ -12,6 +12,10 @@ and the node drives the ctypes Python API (`dftbplus.DftbPlus`).
   is DFTB with the 3ob-3-1 Slater-Koster set (SKF files on
   `DFTBPLUS_PARAM_DIR`). xTB via tblite (GFN1/GFN2/IPEA1) is available as an
   alternative.
+- `dftb_excited_states` — `QMInput`; Casida TD-DFTB (mio-1-1, singlets for a
+  closed shell). Returns `energies` and `gradients` as `ArrayStorage`: total
+  energy of each excited state in Hartree, and the Cartesian gradient of
+  `focus_state` in Hartree/Bohr.
 - `dftb_list_calculator` — `MoleculeList` + `DftbInput`; runs `dftb_calculator`
   on every molecule in parallel and returns a `DataSet` with one section
   named `results`.
