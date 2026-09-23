@@ -16,6 +16,9 @@ dependencies = [
     "molecular_qm_models",
     "simstack",
     "numpy",
+    # ctypes wrapper copied to /opt/dftbplus/pythonapi by the Dockerfile.
+    # Installed into the conda env so import works after simstack replaces PYTHONPATH.
+    "dftbplus",
 ]
 
 [project.entry-points."simstack.modules"]
@@ -56,9 +59,11 @@ bypass-selection = true
 [tool.uv.sources]
 molecular_qm_models = { git = "https://github.com/simstack/molecular_qm_models.git" }
 simstack = { git = "https://github.com/simstack/simstack.git", rev = "ww/new-features" }
+dftbplus = { path = "/opt/dftbplus/pythonapi" }
 
 [tool.uv]
 override-dependencies = [
     "molecular_qm_models @ git+https://github.com/simstack/molecular_qm_models.git",
     "simstack @ git+https://github.com/simstack/simstack.git@ww/new-features",
+    "dftbplus @ file:///opt/dftbplus/pythonapi",
 ]

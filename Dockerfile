@@ -58,6 +58,8 @@ RUN git clone https://github.com/dftbplus/dftbplus.git /tmp/dftbplus \
  && cmake --install _build_instance \
  && test -e /root/opt/dftbplus-25.1-instance/lib/libdftbplus.so \
  && test -x /root/opt/dftbplus-25.1-instance/bin/dftb+ \
+ && mkdir -p /opt/dftbplus \
+ && cp -a /tmp/dftbplus/tools/pythonapi /opt/dftbplus/pythonapi \
  && rm -rf /tmp/dftbplus
 
 # 3ob-3-1 / mio-1-1 SKF sets (CC-BY-SA; cite the 3ob/mio README references).
@@ -76,8 +78,9 @@ ENV DFTBPLUS_PARAM_DIR=/opt/dftbplus/params
 ENV DFTBPLUS_LIB=/root/opt/dftbplus-25.1-instance/lib/libdftbplus
 ENV PATH="/root/opt/dftbplus-25.1-instance/bin:/opt/conda/bin:/root/.local/bin:$PATH"
 ENV LD_LIBRARY_PATH=/root/opt/dftbplus-25.1-instance/lib
-# Make the Python API built by cmake (WITH_PYTHON=ON) importable.
-ENV PYTHONPATH=/root/opt/dftbplus-25.1-instance/lib/python3.12/site-packages
+# The importable dftbplus package is installed into the conda env by
+# pyproject.docker. Do not point PYTHONPATH at the cmake --prefix copy:
+# simstack replaces PYTHONPATH when it launches the node.
 # glibc 2.41+ (Docker Desktop) rejects Fortran SOs that request an executable stack.
 ENV GLIBC_TUNABLES=glibc.rtld.execstack=2
 
@@ -102,7 +105,10 @@ RUN echo "uv git sources ${UV_GIT_SHAS}" \
  && python -c "from molecular_qm_dftb.models.dftb_input import DftbInput; \
 o=DftbInput(optimization=True); \
 assert o.optimization is True and o.compute_gradients is True" \
- && python -c "from dftbplus import DftbPlus; print(DftbPlus)" \
+ && python -c "import dftbplus, os; from dftbplus import DftbPlus; \
+p=os.path.dirname(dftbplus.__file__); \
+assert p.startswith('/opt/conda/'), p; \
+print(DftbPlus, p)" \
  && python -c "import simstack, molecular_qm_models, molecular_qm_dftb; \
 print('dftb+', '/root/opt/dftbplus-25.1-instance/bin/dftb+'); \
 print('simstack', simstack.__file__); \
