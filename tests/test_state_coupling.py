@@ -7,7 +7,7 @@ from molecular_qm_dftb.lib.state_coupling import (
     parse_nacv,
     state_coupling_hsd,
 )
-from tests.test_excited_states import qm_input
+from .test_excited_states import qm_input
 
 
 NACV = """\
