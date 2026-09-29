@@ -42,7 +42,7 @@ RUN git clone https://github.com/dftbplus/dftbplus.git /tmp/dftbplus \
  && git submodule update --init --recursive \
  && FC=gfortran CC=gcc cmake -S . -B _build_instance \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/root/opt/dftbplus-25.1-instance \
+    -DCMAKE_INSTALL_PREFIX=/opt/dftbplus/25.1 \
     -DWITH_API=ON \
     -DWITH_PYTHON=ON \
     -DINSTANCE_SAFE_BUILD=ON \
@@ -56,8 +56,8 @@ RUN git clone https://github.com/dftbplus/dftbplus.git /tmp/dftbplus \
     -DWITH_CHIMES=OFF \
  && cmake --build _build_instance -j \
  && cmake --install _build_instance \
- && test -e /root/opt/dftbplus-25.1-instance/lib/libdftbplus.so \
- && test -x /root/opt/dftbplus-25.1-instance/bin/dftb+ \
+ && test -e /opt/dftbplus/25.1/lib/libdftbplus.so \
+ && test -x /opt/dftbplus/25.1/bin/dftb+ \
  && mkdir -p /opt/dftbplus \
  && cp -a /tmp/dftbplus/tools/pythonapi /opt/dftbplus/pythonapi \
  && rm -rf /tmp/dftbplus
@@ -75,9 +75,9 @@ RUN mkdir -p /opt/dftbplus/params \
  && rm -rf /tmp/3ob-main /tmp/mio-main
 
 ENV DFTBPLUS_PARAM_DIR=/opt/dftbplus/params
-ENV DFTBPLUS_LIB=/root/opt/dftbplus-25.1-instance/lib/libdftbplus
-ENV PATH="/root/opt/dftbplus-25.1-instance/bin:/opt/conda/bin:/root/.local/bin:$PATH"
-ENV LD_LIBRARY_PATH=/root/opt/dftbplus-25.1-instance/lib
+ENV DFTBPLUS_LIB=/opt/dftbplus/25.1/lib/libdftbplus
+ENV PATH="/opt/dftbplus/25.1/bin:/opt/conda/bin:/root/.local/bin:$PATH"
+ENV LD_LIBRARY_PATH=/opt/dftbplus/25.1/lib
 # The importable dftbplus package is installed into the conda env by
 # pyproject.docker. Do not point PYTHONPATH at the cmake --prefix copy:
 # simstack replaces PYTHONPATH when it launches the node.
@@ -86,7 +86,7 @@ ENV GLIBC_TUNABLES=glibc.rtld.execstack=2
 
 ENV UV_PYTHON=/opt/conda/bin/python
 ENV UV_PROJECT_ENVIRONMENT=/opt/conda
-ENV PATH="/root/opt/dftbplus-25.1-instance/bin:/opt/conda/bin:/root/.local/bin:$PATH"
+ENV PATH="/opt/dftbplus/25.1/bin:/opt/conda/bin:/root/.local/bin:$PATH"
 
 # Capability package only — deps install from git via pyproject.docker.
 COPY . /build/molecular_qm_dftb
@@ -110,7 +110,7 @@ p=os.path.dirname(dftbplus.__file__); \
 assert p.startswith('/opt/conda/'), p; \
 print(DftbPlus, p)" \
  && python -c "import simstack, molecular_qm_models, molecular_qm_dftb; \
-print('dftb+', '/root/opt/dftbplus-25.1-instance/bin/dftb+'); \
+print('dftb+', '/opt/dftbplus/25.1/bin/dftb+'); \
 print('simstack', simstack.__file__); \
 print('models', molecular_qm_models.__file__); \
 print('dftb', molecular_qm_dftb.__file__, molecular_qm_dftb.__version__)"

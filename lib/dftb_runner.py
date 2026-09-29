@@ -20,26 +20,56 @@ HARTREE_EV = 27.2113845
 AU_TO_DEBYE = 2.541746473
 
 
+_LIBRARY_FILENAMES = ("libdftbplus.so", "libdftbplus.dylib", "libdftbplus.dll")
+# Apptainer bind-mounts the host home on /root, which hides a prefix installed there.
+_LIBRARY_DIRECTORIES = (
+    "/opt/dftbplus/25.1/lib",
+    "/root/opt/dftbplus-25.1-instance/lib",
+)
+
+
+def _load_library_path(candidate: Path) -> Optional[str]:
+    """Extension-free path for ``numpy.ctypeslib.load_library``, or None."""
+    if candidate.is_dir():
+        for name in _LIBRARY_FILENAMES:
+            library = candidate / name
+            if library.is_file() or library.is_symlink():
+                return str(candidate / "libdftbplus")
+        return None
+    if candidate.name in _LIBRARY_FILENAMES and (candidate.is_file() or candidate.is_symlink()):
+        return str(candidate.with_suffix(""))
+    if candidate.name == "libdftbplus":
+        for name in _LIBRARY_FILENAMES:
+            library = candidate.parent / name
+            if library.is_file() or library.is_symlink():
+                return str(candidate.parent / "libdftbplus")
+    return None
+
+
 def find_libdftbplus() -> str:
     """Locate libdftbplus without relying on the pip package's relative path."""
+    searched: list[str] = []
     env = os.environ.get("DFTBPLUS_LIB")
+    candidates: list[Path] = []
     if env:
-        return env
-    names = ("libdftbplus.so", "libdftbplus.dylib", "libdftbplus.dll")
-    prefixes = [
-        os.environ.get("CONDA_PREFIX"),
-        "/opt/conda",
-        sys.prefix,
-    ]
-    for prefix in prefixes:
-        if not prefix:
+        candidates.append(Path(env))
+    candidates.extend(Path(directory) for directory in _LIBRARY_DIRECTORIES)
+    for prefix in (os.environ.get("CONDA_PREFIX"), "/opt/conda", sys.prefix):
+        if prefix:
+            candidates.append(Path(prefix) / "lib")
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen:
             continue
-        libdir = Path(prefix) / "lib"
-        for name in names:
-            candidate = libdir / name
-            if candidate.exists() or candidate.is_symlink():
-                return str(libdir / "libdftbplus")
-    return "libdftbplus"
+        seen.add(key)
+        searched.append(key)
+        resolved = _load_library_path(candidate)
+        if resolved is not None:
+            return resolved
+    raise RuntimeError(
+        "libdftbplus was not found. Searched: " + ", ".join(searched)
+    )
 
 
 def molecule_coords_bohr(molecule: Molecule) -> np.ndarray:

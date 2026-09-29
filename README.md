@@ -16,6 +16,9 @@ and the node drives the ctypes Python API (`dftbplus.DftbPlus`).
   closed shell). Returns `energies` and `gradients` as `ArrayStorage`: total
   energy of each excited state in Hartree, and the Cartesian gradient of
   `focus_state` in Hartree/Bohr.
+- `dftb_hamiltonian_gradient` — `QMInput` plus two state indices (`0` is the
+  ground state). Returns ⟨ψᵢ|∇H|ψⱼ⟩ in Hartree/Bohr as `hamiltonian_gradient`:
+  the TD-DFTB nonadiabatic coupling times the energy gap.
 - `dftb_list_calculator` — `MoleculeList` + `DftbInput`; runs `dftb_calculator`
   on every molecule in parallel and returns a `DataSet` with one section
   named `results`.
