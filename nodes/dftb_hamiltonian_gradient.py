@@ -48,8 +48,7 @@ async def dftb_hamiltonian_gradient(
         state_j (IntData): Second state. Must differ from state_i.
 
     SimstackResult:
-        hamiltonian_gradient (ArrayStorage): ⟨ψ_i|∇H|ψ_j⟩ in Hartree/Bohr,
-            shape (n_atoms, 3).
+        hamiltonian_gradient (ArrayStorage): ⟨ψ_i|∇H|ψ_j⟩ in Hartree/Bohr, shape (n_atoms, 3).
     """
     node_runner = kwargs["node_runner"]
     molecule = qm_input.molecule

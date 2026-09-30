@@ -33,12 +33,12 @@ async def dftb_excited_states(qm_input: QMInput, **kwargs) -> SimstackResult:
         qm_input (QMInput): Molecule, charge, multiplicity, states, and focus_state.
 
     SimstackResult:
-        energies (ArrayStorage): Total energy of each excited state in Hartree,
-            shape (states,). Index 0 is excited state 1. Entry focus_state - 1
+        energies (ArrayStorage): Total energy of each excited state in Hartree, shape (states,).
+            Index 0 is excited state 1. Entry focus_state - 1
             is the DFTB+ Mermin energy of that state; the other entries keep
             the EXC.DAT excitation gaps relative to it.
-        gradients (ArrayStorage): Energy gradient of focus_state in Hartree/Bohr,
-            shape (n_atoms, 3). This is the gradient of energies[focus_state - 1].
+        gradients (ArrayStorage): Energy gradient of focus_state in Hartree/Bohr, shape (n_atoms, 3).
+            This is the gradient of energies[focus_state - 1].
     """
     node_runner = kwargs["node_runner"]
     molecule = qm_input.molecule
