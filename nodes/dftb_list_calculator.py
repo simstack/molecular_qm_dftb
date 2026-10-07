@@ -28,11 +28,59 @@ async def dftb_list_calculator(
         dataset (DataSet): One section named ``results``. Each row has the
             ``dftb_calculator`` node_runner outputs plus the input molecule and
             DftbInput.
+
+    Concurrency is one ``dftb_calculator`` per Slurm task group. This node's
+    parameters must set ``slurm_parameters.tasks / tasks_per_node``. When only
+    ``tasks`` is set, that value is the concurrency. When only
+    ``tasks_per_node`` is set, concurrency is ``nodes * tasks_per_node``.
     """
     node_runner = kwargs["node_runner"]
-    node_runner.info(f"Running DFTB+ on {len(molecules)} molecules with max_concurrency=5")
+    parameters = kwargs.get("parameters")
+    if parameters is None:
+        parameters = kwargs.get("parent_parameters")
+    if parameters is None:
+        raise ValueError(
+            "dftb_list_calculator requires this node's Parameters in "
+            "kwargs['parameters'] (the node runner passes them as parent_parameters)"
+        )
+    slurm_parameters = getattr(parameters, "slurm_parameters", None)
+    if slurm_parameters is None:
+        raise ValueError("dftb_list_calculator requires parameters.slurm_parameters")
+    fields_set = getattr(slurm_parameters, "model_fields_set", set())
+    slurm_tasks = slurm_parameters.tasks if "tasks" in fields_set else None
+    tasks_per_node = (
+        slurm_parameters.tasks_per_node if "tasks_per_node" in fields_set else None
+    )
+    nodes = slurm_parameters.nodes if "nodes" in fields_set else None
+    if slurm_tasks is not None and tasks_per_node is not None:
+        if tasks_per_node < 1 or slurm_tasks < 1 or slurm_tasks % tasks_per_node != 0:
+            raise ValueError(
+                f"slurm_parameters.tasks ({slurm_tasks}) must be a positive multiple of "
+                f"tasks_per_node ({tasks_per_node})"
+            )
+        max_concurrency = slurm_tasks // tasks_per_node
+    elif slurm_tasks is not None:
+        if slurm_tasks < 1:
+            raise ValueError(f"slurm_parameters.tasks ({slurm_tasks}) must be positive")
+        max_concurrency = slurm_tasks
+    elif tasks_per_node is not None:
+        if nodes is None or nodes < 1 or tasks_per_node < 1:
+            raise ValueError(
+                "slurm_parameters.tasks_per_node requires a positive nodes value "
+                "to get the total number of tasks"
+            )
+        max_concurrency = nodes * tasks_per_node
+    else:
+        raise ValueError(
+            "dftb_list_calculator requires slurm_parameters.tasks, or "
+            "tasks together with tasks_per_node, or nodes together with tasks_per_node"
+        )
+    node_runner.info(
+        f"Running DFTB+ on {len(molecules)} molecules with max_concurrency={max_concurrency} "
+        f"(tasks={slurm_tasks}, tasks_per_node={tasks_per_node}, nodes={nodes})"
+    )
 
-    async with MassRunner(dftb_calculator, max_concurrency=5, **kwargs) as mass_result:
+    async with MassRunner(dftb_calculator, max_concurrency=max_concurrency, **kwargs) as mass_result:
         for molecule in molecules:
             mass_result.create_tasks(molecule, opts)
 

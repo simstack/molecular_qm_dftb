@@ -9,6 +9,7 @@ from molecular_qm_models.molecule import Atom, Molecule, MoleculeList
 from simstack.core.context import context
 from simstack.core.node import node
 from simstack.models import Parameters, DataSet
+from simstack.models.parameters import SlurmParameters
 from odmantic import ObjectId
 
 def perturb_molecule(molecule: Molecule, rng: random.Random) -> Molecule:
@@ -34,7 +35,12 @@ async def list_tester(molecule: Molecule, opts: DftbInput, **kwargs):
     result: DataSet = await dftb_list_calculator(
         molecules,
         opts,
-        parameters=Parameters(resource="local", in_docker=True, force_rerun=True)
+        parameters=Parameters(
+            resource="local",
+            in_docker=True,
+            force_rerun=True,
+            slurm_parameters=SlurmParameters(tasks=5, tasks_per_node=1),
+        )
     )
 
     assert "results" in result
