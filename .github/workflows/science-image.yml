@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       distribute:
-        description: Mirror to simstack.de :5000, push SIF to GHCR, and copy SIF to int-nano
+        description: Mirror to simstack.de :5000, push SIF to GHCR, and refresh compute nodes
         type: boolean
         default: true
 
@@ -127,6 +127,7 @@ jobs:
             docker push "127.0.0.1:5000/${LOCAL_IMAGE}"
             docker image ls "$LOCAL_IMAGE"
             docker image ls "127.0.0.1:5000/${LOCAL_IMAGE}"
+            "$HOME/simstack-model/scripts/update_nodes.sh"
 
   apptainer:
     needs: build
@@ -198,16 +199,3 @@ jobs:
             Pre-built Apptainer image (`${{ env.SIF_NAME }}`).
             On 2FA-only hosts, download with a PAT (no interactive login):
             `curl -L -H "Authorization: Bearer $GITHUB_TOKEN" -o ${{ env.SIF_NAME }} https://github.com/${{ github.repository }}/releases/download/container-sif/${{ env.SIF_NAME }}`
-
-      - name: Upload SIF to int-nano
-        env:
-          INT_NANO_DEPLOY_KEY: ${{ secrets.INT_NANO_DEPLOY_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          printf '%s\n' "$INT_NANO_DEPLOY_KEY" > ~/.ssh/id_ci
-          chmod 600 ~/.ssh/id_ci
-          ssh-keyscan -H int-nano.int.kit.edu >> ~/.ssh/known_hosts
-          scp -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -i ~/.ssh/id_ci \
-            "${RUNNER_TEMP}/apptainer-work/${SIF_NAME}" \
-            "software@int-nano.int.kit.edu:/shared/software/simstack2/containers/${SIF_NAME}"
