@@ -1,0 +1,18 @@
+{
+  "title": "Molecular QM DFTB+ capabilities for SimStack",
+  "workflow_environment": "SimStack",
+  "description": "A SimStack capability package containing models and workflow nodes for molecular calculations with DFTB+. The bundle includes ground-state energy and gradient calculations, geometry optimization, excited-state calculations, Hamiltonian gradients, and serial or parallel calculations for lists of molecules.",
+  "authors": [
+    "Wolfgang Wenzel",
+    "Phillip Dullinger"
+  ],
+  "release": "v0.11.2",
+  "keywords": [
+    "SimStack",
+    "DFTB+",
+    "quantum chemistry",
+    "tight binding",
+    "excited states",
+    "workflow nodes"
+  ]
+}
